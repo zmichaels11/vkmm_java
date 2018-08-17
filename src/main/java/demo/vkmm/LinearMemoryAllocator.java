@@ -40,6 +40,10 @@ public final class LinearMemoryAllocator implements MemoryAllocator {
         }
     }
 
+    public void clear() {
+        this.pointer = 0L;
+    }
+
     @Override
     public MemoryBlock malloc(MemoryType type, VkMemoryRequirements pMemReqs) {
         long alignedSize = MemoryAllocator.alignUp(pMemReqs.size(), pMemReqs.alignment());
