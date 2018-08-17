@@ -8,11 +8,14 @@ import org.lwjgl.vulkan.VkMemoryRequirements;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
-public class UniqueMemoryAllocator implements MemoryAllocator {
+public final class UniqueMemoryAllocator implements MemoryAllocator {
     private final WeakReference<VkDevice> device;
     private final int typeIndex;
+    private final Set<MemoryBlock> allocations = new HashSet<>();
 
     public UniqueMemoryAllocator(final VkDevice device, final int typeIndex) {
         this.device = new WeakReference<>(device);
@@ -21,12 +24,18 @@ public class UniqueMemoryAllocator implements MemoryAllocator {
 
     @Override
     public MemoryBlock malloc(MemoryType type, VkMemoryRequirements pMemReqs) {
-        return null;
+        final long alignedSize  = MemoryAllocator.alignUp(pMemReqs.size(), pMemReqs.alignment());
+        final MemoryBlock out = new UniqueMemoryBlock(alignedSize);
+
+        this.allocations.add(out);
+
+        return out;
     }
 
     @Override
     public void free() {
-
+        this.allocations.forEach(MemoryBlock::free);
+        this.allocations.clear();
     }
 
     @Override
@@ -41,17 +50,15 @@ public class UniqueMemoryAllocator implements MemoryAllocator {
 
     @Override
     public boolean isEmpty() {
-        return true;
+        return this.allocations.isEmpty();
     }
 
     private final class UniqueMemoryBlock implements MemoryBlock {
         private final long handle;
         private final long size;
-        private final MemoryType type;
 
-        private UniqueMemoryBlock(final MemoryType type, final long size) {
+        private UniqueMemoryBlock(final long size) {
             this.size = size;
-            this.type = type;
 
             try (var mem = MemoryStack.stackPush()) {
                 final var pHandle = mem.callocLong(1);
@@ -108,6 +115,19 @@ public class UniqueMemoryAllocator implements MemoryAllocator {
         @Override
         public VkDevice getDevice() {
             return UniqueMemoryAllocator.this.getDevice();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            UniqueMemoryBlock that = (UniqueMemoryBlock) o;
+            return handle == that.handle;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(handle);
         }
     }
 }
